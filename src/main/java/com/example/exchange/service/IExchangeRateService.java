@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 import java.util.Map;
 
 public interface IExchangeRateService {
-    void updateRates();
+    void updateRates(int value);
 
     Map<String, BigDecimal> getRatesForCurrency(String code);
 }

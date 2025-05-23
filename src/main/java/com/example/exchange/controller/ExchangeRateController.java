@@ -29,6 +29,6 @@ public class ExchangeRateController {
     @Operation(summary = "update exchange rates", description = "Fetches the exchange rates from exhange")
     @GetMapping("/updateRate")
     public void updateExchangeRate() {
-        exchangeRateService.updateRates();
+        exchangeRateService.updateRates(0);
     }
 }

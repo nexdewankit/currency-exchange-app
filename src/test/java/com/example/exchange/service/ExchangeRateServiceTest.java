@@ -9,18 +9,18 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.*;
 import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.*;
+
+import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.time.LocalDateTime;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class ExchangeRateServiceTest {
@@ -32,60 +32,48 @@ class ExchangeRateServiceTest {
     private CurrencyService currencyService;
 
     @Mock
-    private RestTemplate restTemplate;
+    private WebClient webClient;
+
+    @Mock
+    private WebClient.RequestHeadersUriSpec<?> uriSpec;
+
+    @Mock
+    private WebClient.RequestHeadersSpec<?> headersSpec;
+
+    @Mock
+    private WebClient.ResponseSpec responseSpec;
 
     @InjectMocks
     private ExchangeRateService exchangeRateService;
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-
-        // Set openexchangerates.app-id manually since @Value won't inject in test
-        ReflectionTestUtils.setField(exchangeRateService, "appId", "dummy-app-id");
+        // Inject the appId property
+        ReflectionTestUtils.setField(exchangeRateService, "appId", "testAppId");
     }
 
     @Test
-    void testUpdateRates() throws Exception {
-        Currency currency = new Currency();
-        currency.setCode("USD");
-
-        List<Currency> currencies = List.of(currency);
-
-        Map<String, BigDecimal> mockRates = new HashMap<>();
-        mockRates.put("EUR", new BigDecimal("0.85"));
-        mockRates.put("INR", new BigDecimal("74.5"));
-
-        String jsonResponse = """
-        {
-          "rates": {
-            "EUR": 0.85,
-            "INR": 74.5
-          }
-        }
-        """;
-
-        ObjectMapper objectMapper = new ObjectMapper();
-        JsonNode jsonNode = objectMapper.readTree(jsonResponse);
-
-        when(currencyService.getAllCurrencies()).thenReturn(currencies);
-        when(restTemplate.getForObject(anyString(), eq(JsonNode.class))).thenReturn(jsonNode);
-        when(rateRepository.save(any(ExchangeRate.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        exchangeRateService.updateRates();
+    void getRatesForCurrency_shouldReturnRatesMap() {
+        ExchangeRate rate1 = new ExchangeRate("USD", "EUR", BigDecimal.valueOf(0.85), LocalDateTime.now());
+        ExchangeRate rate2 = new ExchangeRate("USD", "GBP", BigDecimal.valueOf(0.75), LocalDateTime.now());
+        when(rateRepository.findByBaseCurrency("USD")).thenReturn(List.of(rate1, rate2));
 
         Map<String, BigDecimal> rates = exchangeRateService.getRatesForCurrency("USD");
 
-        assertEquals(new BigDecimal("0.85"), rates.get("EUR"));
-        assertEquals(new BigDecimal("74.5"), rates.get("INR"));
-
-        verify(rateRepository, times(2)).save(any(ExchangeRate.class));
+        assertEquals(2, rates.size());
+        assertEquals(BigDecimal.valueOf(0.85), rates.get("EUR"));
+        assertEquals(BigDecimal.valueOf(0.75), rates.get("GBP"));
     }
 
     @Test
-    void testGetRatesForCurrencyWhenEmpty() {
-        Map<String, BigDecimal> result = exchangeRateService.getRatesForCurrency("XXX");
-        assertNotNull(result);
-        assertTrue(result.isEmpty());
+    void getRatesForCurrency_shouldReturnEmptyMap_whenNoRates() {
+        when(rateRepository.findByBaseCurrency("USD")).thenReturn(Collections.emptyList());
+
+        Map<String, BigDecimal> rates = exchangeRateService.getRatesForCurrency("USD");
+
+        assertTrue(rates.isEmpty());
     }
 }

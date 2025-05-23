@@ -14,6 +14,6 @@ public class RateScheduler {
 
     @Scheduled(fixedRate = 3600000)
     public void fetchRates() {
-        exchangeRateService.updateRates();
+        exchangeRateService.updateRates(0);
     }
 }
